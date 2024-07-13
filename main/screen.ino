@@ -44,7 +44,6 @@ void _screen_header() {
     // Datetime (if the axp192 PMIC is present, alternate between powerstats and time)
     if(axp192_found && millis()%8000 < 3000){
         snprintf(buffer, sizeof(buffer), "%.1fV %.0fmA", axp.getBattVoltage()/1000, axp.getBattChargeCurrent() - axp.getBattDischargeCurrent());
-
     } else {
         gps_time(buffer, sizeof(buffer));
     }
@@ -145,8 +144,9 @@ void screen_loop() {
     }
     #endif
 
-    display->clear();
+//    display->clear();
+display->setColor(BLACK); display->fillRect(0, 0, display->getWidth(), SCREEN_HEADER_HEIGHT); display->setColor(WHITE);
     _screen_header();
-    display->drawLogBuffer(0, SCREEN_HEADER_HEIGHT);
+//    display->drawLogBuffer(0, SCREEN_HEADER_HEIGHT);
     display->display();
 }

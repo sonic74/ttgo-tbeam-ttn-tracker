@@ -68,21 +68,35 @@ static void gps_loop() {
 #if defined(PAYLOAD_USE_FULL)
 
     // More data than PAYLOAD_USE_CAYENNE
-    void buildPacket(uint8_t txBuffer[10])
+    void buildPacket(uint8_t txBuffer[10], bool gps)
     {
+        if(gps) {
         LatitudeBinary = ((_gps.location.lat() + 90) / 180.0) * 16777215;
         LongitudeBinary = ((_gps.location.lng() + 180) / 360.0) * 16777215;
         altitudeGps = _gps.altitude.meters();
         hdopGps = _gps.hdop.value() / 10;
         sats = _gps.satellites.value();
-
         sprintf(t, "Lat: %f", _gps.location.lat());
         Serial.println(t);
         sprintf(t, "Lng: %f", _gps.location.lng());
         Serial.println(t);
-        sprintf(t, "Alt: %d", altitudeGps);
-        Serial.println(t);
         sprintf(t, "Hdop: %d", hdopGps);
+        Serial.println(t);
+        } else {
+        LatitudeBinary = ((WifiLocation_lat() + 90) / 180.0) * 16777215;
+        LongitudeBinary = ((WifiLocation_lon() + 180) / 360.0) * 16777215;
+        altitudeGps = 0;
+        hdopGps = WifiLocation_acc()*10;
+        sats = 0;
+        sprintf(t, "Lat: %f", WifiLocation_lat());
+        Serial.println(t);
+        sprintf(t, "Lng: %f", WifiLocation_lon());
+        Serial.println(t);
+        sprintf(t, "Hdop: %d", WifiLocation_acc());
+        Serial.println(t);
+        }
+
+        sprintf(t, "Alt: %d", altitudeGps);
         Serial.println(t);
         sprintf(t, "Sats: %d", sats);
         Serial.println(t);

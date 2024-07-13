@@ -60,6 +60,12 @@ void buildPacket(uint8_t txBuffer[]);  // needed for platformio
  */
 bool trySend() {
     packetSent = false;
+    #if LORAWAN_CONFIRMED_EVERY > 0
+        bool confirmed = (ttn_get_count() % LORAWAN_CONFIRMED_EVERY == 0);
+        if (confirmed) { Serial.println("confirmation enabled"); }
+    #else
+        bool confirmed = false;
+    #endif
     // We also wait for altitude being not exactly zero, because the GPS chip generates a bogus 0 alt report when first powered on
     if (0 < gps_hdop() && gps_hdop() < 50 && gps_latitude() != 0 && gps_longitude() != 0 && gps_altitude() != 0) {
         char buffer[40];
@@ -70,21 +76,22 @@ bool trySend() {
         snprintf(buffer, sizeof(buffer), "Error: %4.2fm\n", gps_hdop());
         screen_print(buffer);
 
-        buildPacket(txBuffer);
+        buildPacket(txBuffer, true);
 
-    #if LORAWAN_CONFIRMED_EVERY > 0
-        bool confirmed = (ttn_get_count() % LORAWAN_CONFIRMED_EVERY == 0);
-        if (confirmed){ Serial.println("confirmation enabled"); }
-    #else
-        bool confirmed = false;
-    #endif
+        packetQueued = true;
+        ttn_send(txBuffer, sizeof(txBuffer), LORAWAN_PORT, confirmed);
+        return true;
+    } else {
+        if(WifiLocation_setup()) {
 
-    packetQueued = true;
-    ttn_send(txBuffer, sizeof(txBuffer), LORAWAN_PORT, confirmed);
-    return true;
-    }
-    else {
-        return false;
+          buildPacket(txBuffer, false);
+
+          packetQueued = true;
+          ttn_send(txBuffer, sizeof(txBuffer), LORAWAN_PORT, confirmed);
+          return true;
+        } else {
+            return false;
+        }
     }
 }
 
@@ -195,8 +202,7 @@ void callback(uint8_t message) {
 }
 
 
-void scanI2Cdevice(void)
-{
+void scanI2Cdevice(void) {
     byte err, addr;
     int nDevices = 0;
     for (addr = 1; addr < 127; addr++) {
@@ -250,7 +256,13 @@ void axp192Init() {
         } else {
             Serial.println("AXP192 Begin FAIL");
         }
-        // axp.setChgLEDMode(LED_BLINK_4HZ);
+
+            // Set mode of blue onboard LED (OFF, ON, Blinking 1Hz, Blinking 4 Hz)
+            axp.setChgLEDMode(AXP20X_LED_OFF);
+            //axp.setChgLEDMode(AXP20X_LED_LOW_LEVEL);
+            //axp.setChgLEDMode(AXP20X_LED_BLINK_1HZ);
+            //axp.setChgLEDMode(AXP20X_LED_BLINK_4HZ);
+
         Serial.printf("DCDC1: %s\n", axp.isDCDC1Enable() ? "ENABLE" : "DISABLE");
         Serial.printf("DCDC2: %s\n", axp.isDCDC2Enable() ? "ENABLE" : "DISABLE");
         Serial.printf("LDO2: %s\n", axp.isLDO2Enable() ? "ENABLE" : "DISABLE");
@@ -282,7 +294,7 @@ void axp192Init() {
         axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
         axp.clearIRQ();
 
-        if (axp.isCharging()) {
+        if (axp.isChargeing()) {
             baChStatus = "Charging";
         }
     } else {
@@ -339,7 +351,6 @@ void setup()
 
     // Init GPS
     gps_setup();
-
     // Show logo on first boot after removing battery
     #ifndef ALWAYS_SHOW_LOGO
     if (bootCount == 0) {
@@ -361,8 +372,7 @@ void setup()
             screen_off();
             sleep_forever();
         }
-    }
-    else {
+    } else {
         ttn_register(callback);
         ttn_join();
         ttn_adr(LORAWAN_ADR);
@@ -386,6 +396,7 @@ void loop() {
         if (!wasPressed) {
             // just started a new press
             Serial.println("pressing");
+        Serial.print("MAX_LEN_PAYLOAD:"); Serial.println(MAX_LEN_PAYLOAD);
             wasPressed = true;
             minPressMs = millis() + 3000;
         }
